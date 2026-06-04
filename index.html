@@ -197,19 +197,22 @@ textarea{resize:vertical;min-height:60px}
   <div class="field"><label>Mô tả</label><input type="text" id="exp-desc" placeholder="Mô tả chi tiêu..."></div>
   <div class="g2">
     <div class="field"><label>Danh mục</label><select id="exp-cat"></select></div>
-    <div class="field"><label>Nguồn tiền</label><select id="exp-wallet">
+    <div class="field"><label>Nguồn tiền</label><select id="exp-wallet" onchange="onWalletChange(this.value)">
       <option value="">-- Chọn nguồn --</option>
       <option value="Tiền mặt">💵 Tiền mặt</option>
       <option value="MoMo">💜 MoMo</option>
       <option value="ZaloPay">💙 ZaloPay</option>
+      <option value="MB Bank">🏦 MB Bank</option>
       <option value="Vietcombank">🏦 Vietcombank</option>
       <option value="Techcombank">🏦 Techcombank</option>
       <option value="BIDV">🏦 BIDV</option>
       <option value="Agribank">🏦 Agribank</option>
       <option value="Thẻ tín dụng">💳 Thẻ tín dụng</option>
+      <option value="__loan__">🏷️ Từ nguồn vay...</option>
       <option value="Khác">🔖 Khác</option>
     </select></div>
   </div>
+  <div id="exp-loan-field" style="display:none" class="field"><label>🏷️ Chọn khoản vay</label><select id="exp-loan-ref"><option value="">-- Chọn khoản vay --</option></select></div>
   <div class="field"><label>Ghi chú</label><input type="text" id="exp-note" placeholder="Tuỳ chọn"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
     <button class="btn" onclick="closeModal('modal-expense')">Huỷ</button>
@@ -234,10 +237,11 @@ textarea{resize:vertical;min-height:60px}
   <div class="g2">
     <div class="field"><label>Nguồn thu nhập</label><input type="text" id="inc-source" placeholder="Vd: Lương công ty, Freelance..."></div>
     <div class="field"><label>Loại thu nhập</label>
-      <select id="inc-type-cat">
+      <select id="inc-type-cat" onchange="onIncTypeCatChange(this.value)">
         <option value="salary">💼 Lương</option><option value="business">🏪 Kinh doanh</option>
         <option value="freelance">💻 Freelance</option><option value="rental">🏠 Cho thuê</option>
         <option value="investment">📈 Đầu tư</option><option value="bonus">🎁 Thưởng</option>
+        <option value="loan_received">🏷️ Vay được</option>
         <option value="other">📦 Khác</option>
       </select>
     </div>
@@ -246,6 +250,7 @@ textarea{resize:vertical;min-height:60px}
     <div class="field"><label>Khấu trừ / Chi phí (VNĐ)</label><input type="text" id="inc-deduction" placeholder="Thuế, bảo hiểm... (tuỳ chọn)" oninput="fmtInput(this);updateIncPreview()" inputmode="numeric"></div>
     <div class="field"><label>Ghi chú</label><input type="text" id="inc-note" placeholder="Tuỳ chọn"></div>
   </div>
+  <div id="inc-loan-field" style="display:none" class="field"><label>🏷️ Liên kết khoản vay</label><select id="inc-loan-ref"><option value="">-- Chọn khoản vay (tuỳ chọn) --</option></select></div>
   <div id="inc-net-preview" style="display:none;padding:8px 12px;background:var(--green-l);border-radius:8px;font-size:13px;color:var(--green-d);margin-bottom:.5rem"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
     <button class="btn" onclick="closeModal('modal-income')">Huỷ</button>
@@ -414,7 +419,36 @@ const DEF_CATS=[
   {id:'c8',name:'Tiết kiệm',icon:'🐷',color:'#3B6D11',bg:'#EAF3DE'},
   {id:'c9',name:'Khác',icon:'🛒',color:'#5F5E5A',bg:'#F1EFE8'}
 ];
-const INC_LABEL={salary:'💼 Lương',business:'🏪 Kinh doanh',freelance:'💻 Freelance',rental:'🏠 Cho thuê',investment:'📈 Đầu tư',bonus:'🎁 Thưởng',other:'📦 Khác'};
+const INC_LABEL={salary:'💼 Lương',business:'🏪 Kinh doanh',freelance:'💻 Freelance',rental:'🏠 Cho thuê',investment:'📈 Đầu tư',bonus:'🎁 Thưởng',loan_received:'🏷️ Vay được',other:'📦 Khác'};
+
+// ── Wallet change: hiện/ẩn dropdown chọn khoản vay ──
+function onWalletChange(val){
+  const loanField=$('exp-loan-field');
+  if(val==='__loan__'){
+    loanField.style.display='block';
+    const sel=$('exp-loan-ref');
+    const borrows=DATA.loans.filter(l=>l.direction==='borrow'&&l.status!=='paid');
+    sel.innerHTML='<option value="">-- Chọn khoản vay --</option>'+
+      borrows.map(l=>`<option value="${l.id}">🏷️ ${l.party} · còn ${fmt(getLoanRemaining(l))}</option>`).join('');
+  } else {
+    loanField.style.display='none';
+    $('exp-loan-ref').value='';
+  }
+}
+// ── Income typeCat change: hiện/ẩn liên kết khoản vay ──
+function onIncTypeCatChange(val){
+  const loanField=$('inc-loan-field');
+  if(val==='loan_received'){
+    loanField.style.display='block';
+    const sel=$('inc-loan-ref');
+    const borrows=DATA.loans.filter(l=>l.direction==='borrow'&&l.status!=='paid');
+    sel.innerHTML='<option value="">-- Chọn khoản vay (tuỳ chọn) --</option>'+
+      borrows.map(l=>`<option value="${l.id}">🏷️ ${l.party} · ${fmt(Number(l.amount))}</option>`).join('');
+  } else {
+    loanField.style.display='none';
+    $('inc-loan-ref').value='';
+  }
+}
 const REPAY_LABEL={bullet:'Trả 1 lần',installment:'Trả góp',interest_only:'Trả lãi định kỳ'};
 const INT_LABEL={maturity:'Lãi cuối kỳ',monthly:'Lãi hàng tháng',advance:'Lãi trước'};
 const GAS_URL='https://script.google.com/macros/s/AKfycbzWJxEIeTSayfVxGc0-JzdTQxfv21qQGvYbfkfeBdh_H3c39ttsGAoOpdLHBd2_w5QD/exec';
@@ -955,15 +989,16 @@ function calcLoanMonthly(){if($('loan-repay-type').value!=='installment')return;
 function updateLoanLabel(){const d=$('loan-direction')?.value;const el=$('loan-party-lbl');if(el)el.textContent=d==='borrow'?'Nguồn / người cho vay':'Người vay của bạn';}
 
 // ═══════════════ MODAL ACTIONS — EXPENSE ═══════════════
-function openAddExpense(){editExpId=null;$('exp-modal-title').textContent='Thêm chi tiêu';$('exp-date').value=today();$('exp-amount').value='';$('exp-desc').value='';$('exp-note').value='';$('exp-wallet').value='';$('exp-cat').innerHTML=DATA.cats.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');$('modal-expense').classList.add('open');setTimeout(()=>$('exp-amount').focus(),100);}
+function openAddExpense(){editExpId=null;$('exp-modal-title').textContent='Thêm chi tiêu';$('exp-date').value=today();$('exp-amount').value='';$('exp-desc').value='';$('exp-note').value='';$('exp-wallet').value='';$('exp-loan-field').style.display='none';$('exp-loan-ref').value='';$('exp-cat').innerHTML=DATA.cats.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');$('modal-expense').classList.add('open');setTimeout(()=>$('exp-amount').focus(),100);}
 function openEditExp(id){const e=DATA.expenses.find(x=>x.id===id);if(!e)return;editExpId=id;$('exp-modal-title').textContent='Sửa chi tiêu';$('exp-date').value=e.date;$('exp-amount').value=Number(e.amount).toLocaleString('vi-VN');$('exp-desc').value=e.desc||'';$('exp-note').value=e.note||'';$('exp-wallet').value=e.wallet||'';$('exp-cat').innerHTML=DATA.cats.map(c=>`<option value="${c.id}"${c.id===e.cat?' selected':''}>${c.icon} ${c.name}</option>`).join('');$('modal-expense').classList.add('open');}
-async function saveExpense(){const amount=rawNum('exp-amount');if(!amount){toast('Nhập số tiền','err');return;}const obj={id:editExpId||uid(),date:$('exp-date').value,amount,desc:$('exp-desc').value||'Chi tiêu',cat:$('exp-cat').value,wallet:$('exp-wallet').value||'Khác',note:$('exp-note').value};if(editExpId)DATA.expenses=DATA.expenses.map(e=>e.id===editExpId?obj:e);else DATA.expenses.push(obj);editExpId=null;setBtnLoad('exp-save-btn',true);await pushData('Đã lưu ✓');setBtnLoad('exp-save-btn',false);closeModal('modal-expense');qs('.nav-item.active')?.click();}
+async function saveExpense(){const amount=rawNum('exp-amount');if(!amount){toast('Nhập số tiền','err');return;}const walletRaw=$('exp-wallet').value;const loanRef=$('exp-loan-ref').value;const wallet=walletRaw==='__loan__'?(loanRef?(()=>{const l=DATA.loans.find(x=>x.id===loanRef);return l?'Vay: '+l.party:'Nguồn vay';})()):'Nguồn vay':walletRaw||'Khác';const obj={id:editExpId||uid(),date:$('exp-date').value,amount,desc:$('exp-desc').value||'Chi tiêu',cat:$('exp-cat').value,wallet,loanRef:loanRef||undefined,note:$('exp-note').value};if(editExpId)DATA.expenses=DATA.expenses.map(e=>e.id===editExpId?obj:e);else DATA.expenses.push(obj);editExpId=null;setBtnLoad('exp-save-btn',true);await pushData('Đã lưu ✓');setBtnLoad('exp-save-btn',false);closeModal('modal-expense');qs('.nav-item.active')?.click();}
 async function delExp(id){if(!confirm('Xoá giao dịch này?'))return;DATA.expenses=DATA.expenses.filter(e=>e.id!==id);await pushData('Đã xoá ✓');qs('.nav-item.active')?.click();}
 
 // ═══════════════ MODAL ACTIONS — INCOME ═══════════════
-function openAddIncome(){editIncId=null;$('inc-modal-title').textContent='Thêm thu nhập';$('inc-date').value=today();$('inc-amount').value='';$('inc-source').value='';$('inc-deduction').value='';$('inc-note').value='';$('inc-net-preview').style.display='none';setIncType('fixed');$('modal-income').classList.add('open');}
-function openEditIncome(id){const i=DATA.income.find(x=>x.id===id);if(!i)return;editIncId=id;$('inc-modal-title').textContent='Sửa thu nhập';$('inc-date').value=i.date;$('inc-amount').value=Number(i.amount).toLocaleString('vi-VN');$('inc-source').value=i.source||'';$('inc-note').value=i.note||'';$('inc-deduction').value=i.deduction?Number(i.deduction).toLocaleString('vi-VN'):'';$('inc-type-cat').value=i.typeCat||'salary';setIncType(i.incomeType||'fixed');updateIncPreview();$('modal-income').classList.add('open');}
-async function saveIncome(){const amount=rawNum('inc-amount');if(!amount){toast('Nhập số tiền','err');return;}const obj={id:editIncId||uid(),date:$('inc-date').value,amount,source:$('inc-source').value,typeCat:$('inc-type-cat').value,incomeType:$('inc-income-type').value,deduction:rawNum('inc-deduction')||0,note:$('inc-note').value};if(editIncId)DATA.income=DATA.income.map(i=>i.id===editIncId?obj:i);else DATA.income.push(obj);editIncId=null;setBtnLoad('inc-save-btn',true);await pushData('Đã lưu ✓');setBtnLoad('inc-save-btn',false);closeModal('modal-income');renderIncome();}
+function openAddIncome(){editIncId=null;$('inc-modal-title').textContent='Thêm thu nhập';$('inc-date').value=today();$('inc-amount').value='';$('inc-source').value='';$('inc-deduction').value='';$('inc-note').value='';$('inc-net-preview').style.display='none';$('inc-loan-field').style.display='none';$('inc-loan-ref').value='';$('inc-type-cat').value='salary';setIncType('fixed');$('modal-income').classList.add('open');}
+function openEditIncome(id){const i=DATA.income.find(x=>x.id===id);if(!i)return;editIncId=id;$('inc-modal-title').textContent='Sửa thu nhập';$('inc-date').value=i.date;$('inc-amount').value=Number(i.amount).toLocaleString('vi-VN');$('inc-source').value=i.source||'';$('inc-note').value=i.note||'';$('inc-deduction').value=i.deduction?Number(i.deduction).toLocaleString('vi-VN'):'';$('inc-type-cat').value=i.typeCat||'salary';onIncTypeCatChange(i.typeCat||'salary');if(i.loanRef&&$('inc-loan-ref'))$('inc-loan-ref').value=i.loanRef;setIncType(i.incomeType||'fixed');updateIncPreview();$('modal-income').classList.add('open');}
+async function saveIncome(){const amount=rawNum('inc-amount');if(!amount){toast('Nhập số tiền','err');return;}const typeCat=$('inc-type-cat').value;const loanRef=$('inc-loan-ref').value;let source=$('inc-source').value;// Nếu là "Vay được" mà chưa điền nguồn, tự điền tên khoản vay
+if(typeCat==='loan_received'&&!source&&loanRef){const l=DATA.loans.find(x=>x.id===loanRef);if(l)source=l.party;}const obj={id:editIncId||uid(),date:$('inc-date').value,amount,source,typeCat,incomeType:$('inc-income-type').value,deduction:rawNum('inc-deduction')||0,loanRef:loanRef||undefined,note:$('inc-note').value};if(editIncId)DATA.income=DATA.income.map(i=>i.id===editIncId?obj:i);else DATA.income.push(obj);editIncId=null;setBtnLoad('inc-save-btn',true);await pushData('Đã lưu ✓');setBtnLoad('inc-save-btn',false);closeModal('modal-income');renderIncome();}
 async function delIncome(id){if(!confirm('Xoá khoản thu này?'))return;DATA.income=DATA.income.filter(i=>i.id!==id);await pushData('Đã xoá ✓');renderIncome();}
 async function autoCreateFixedIncome(){const now=new Date(),prevMk=`${now.getMonth()===0?now.getFullYear()-1:now.getFullYear()}-${String(now.getMonth()===0?12:now.getMonth()).padStart(2,'0')}`,mk=mkey(),prevFixed=DATA.income.filter(i=>mkey(i.date)===prevMk&&i.incomeType==='fixed');if(!prevFixed.length){toast('Không có thu nhập cố định tháng trước','err');return;}const existing=DATA.income.filter(i=>mkey(i.date)===mk&&i.incomeType==='fixed');if(existing.length>0&&!confirm(`Tháng ${mk} đã có ${existing.length} thu nhập cố định. Tạo thêm?`))return;prevFixed.forEach(i=>DATA.income.push({...i,id:uid(),date:mk+'-01'}));await pushData(`✅ Đã tạo ${prevFixed.length} thu nhập cố định tháng ${mk}`);renderIncome();}
 
